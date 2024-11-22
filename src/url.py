@@ -21,6 +21,10 @@ class URL:
         self.host, url = url.split("/", 1)
         self.path = "/" + url
 
+        if ":" in self.host:
+            self.host, port = self.host.split(":", 1)
+            self.port = int(port)
+
     def request(self):
         s = socket.socket(
             family=socket.AF_INET,
