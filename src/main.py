@@ -1,9 +1,5 @@
+from entities import entities
 from url import URL
-
-entities = {
-    "&lt;": "<",
-    "&gt;": ">",
-}
 
 
 def show(body: str):
