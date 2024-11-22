@@ -10,7 +10,7 @@ from entities import entities
 sockets: dict[tuple[str, int], socket.socket] = {}
 
 
-@dataclass
+@dataclass(frozen=True)
 class CacheEntry:
     content: str
     expires: float
