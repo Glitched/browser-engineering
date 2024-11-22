@@ -7,6 +7,7 @@ from url import URL
 HSTEP, VSTEP = 13, 18
 PARAGRAPH_STEP = 2 * VSTEP
 SCROLL_STEP = 100
+SCROLL_BAR_WIDTH = 10
 
 # Typeshed definitions require generics, but we can't subscript python builtins
 if TYPE_CHECKING:
@@ -40,7 +41,7 @@ class Browser:
 
     def load(self, url: URL):
         body = url.request()
-        text = self.lex(body)
+        self.lex(body)
         self.layout()
         self.draw()
 
@@ -73,7 +74,7 @@ class Browser:
 
             display_list.append((cursor_x, cursor_y, c))
             cursor_x += HSTEP
-            if cursor_x + HSTEP > self.width:
+            if cursor_x + HSTEP > self.width - SCROLL_BAR_WIDTH:
                 cursor_x = HSTEP
                 cursor_y += VSTEP
 
@@ -91,6 +92,19 @@ class Browser:
 
             self.canvas.create_text(x, y - self.scroll, text=c)
 
+        # Draw scroll bar
+        if self.get_y_max() > self.height:
+            bar = self.canvas.create_rectangle(
+                self.width - SCROLL_BAR_WIDTH,
+                (self.scroll / self.get_y_max()) * self.height,
+                self.width - 5,
+                ((self.scroll + self.height) / self.get_y_max()) * self.height,
+            )
+            self.canvas.itemconfig(bar, fill="#999999")
+
+    def get_y_max(self):
+        return self.display_list[-1][1]
+
     def on_configure(self, e: EventType):
         self.width = e.width
         self.height = e.height
@@ -98,7 +112,7 @@ class Browser:
         self.draw()
 
     def add_scroll(self, offset: int):
-        self.scroll = max(0, self.scroll + offset)
+        self.scroll = min(max(0, self.scroll + offset), self.get_y_max())
 
     def scrolldown(self, e: EventType):
         self.add_scroll(SCROLL_STEP)
