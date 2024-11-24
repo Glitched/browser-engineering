@@ -17,6 +17,7 @@ else:
 
 
 class Browser:
+    rtl: bool
     window: tkinter.Tk
     canvas: tkinter.Canvas
     scroll: int
@@ -25,7 +26,8 @@ class Browser:
     width: int
     height: int
 
-    def __init__(self):
+    def __init__(self, rtl: bool = False):
+        self.rtl = rtl
         self.window = tkinter.Tk()
         self.window.title("Slama Browser")
         self.window.resizable(True, True)
@@ -65,18 +67,17 @@ class Browser:
         display_list: list[tuple[int, int, str]] = []
         cursor_x, cursor_y = HSTEP, VSTEP
 
-        for c in self.text:
-            # Support line breaks
-            if c == "\n":
-                cursor_x = HSTEP
-                cursor_y += PARAGRAPH_STEP
-                continue
+        paragraphs = self.text.split("\n\n")
+        for paragraph in paragraphs:
+            for c in paragraph:
+                display_list.append((cursor_x, cursor_y, c))
+                cursor_x += HSTEP
+                if cursor_x + HSTEP > self.width - SCROLL_BAR_WIDTH:
+                    cursor_x = HSTEP
+                    cursor_y += VSTEP
 
-            display_list.append((cursor_x, cursor_y, c))
-            cursor_x += HSTEP
-            if cursor_x + HSTEP > self.width - SCROLL_BAR_WIDTH:
-                cursor_x = HSTEP
-                cursor_y += VSTEP
+            cursor_x = HSTEP
+            cursor_y += PARAGRAPH_STEP
 
         self.display_list = display_list
 
@@ -103,6 +104,8 @@ class Browser:
             self.canvas.itemconfig(bar, fill="#999999")
 
     def get_y_max(self):
+        if len(self.display_list) == 0:
+            return 1
         return self.display_list[-1][1]
 
     def on_configure(self, e: EventType):

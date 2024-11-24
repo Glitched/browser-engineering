@@ -44,8 +44,12 @@ class URL:
             _type, self.path = url.split(",", 1)
             return
 
+        if url.startswith("about:"):
+            self.scheme, self.path = url.split(":", 1)
+            return
+
         self.scheme, url = url.split("://", 1)
-        assert self.scheme in ["http", "https", "file", "data"]
+        assert self.scheme in ["http", "https", "file", "data", "about"]
         if self.scheme == "http":
             self.port = 80
         elif self.scheme == "https":
@@ -64,19 +68,40 @@ class URL:
         return f"{self.scheme}://{self.host}:{self.port}{self.path}"
 
     def request(self) -> str:
-        if self.get_url_string() in cache:
-            entry = cache[self.get_url_string()]
-            if entry.expires > time.time():
-                return entry.content
-            else:
-                del cache[self.get_url_string()]
+        try:
+            return self.make_request()
+        except Exception as e:
+            print(e)
+            return self.about("blank")
 
+    def about(self, path: str) -> str:
+        match path:
+            case "blank":
+                return ""
+            case _:
+                raise Exception(f"Unknown about: URL: {path}")
+
+    def make_request(self) -> str:
         if self.scheme == "file":
             with open(self.path, "rb") as f:
                 return f.read().decode("utf8")
 
         if self.scheme == "data":
             return self.path
+
+        if self.scheme == "about":
+            match self.path:
+                case "blank":
+                    return self.about("blank")
+                case _:
+                    raise Exception(f"Unknown about: URL: {self.path}")
+
+        if self.get_url_string() in cache:
+            entry = cache[self.get_url_string()]
+            if entry.expires > time.time():
+                return entry.content
+            else:
+                del cache[self.get_url_string()]
 
         s = self.get_socket()
 
@@ -132,7 +157,8 @@ class URL:
 
         cache_control = response_headers.get("cache-control", "")
         if (
-            status == "200"
+            (self.scheme == "http" or self.scheme == "https")
+            and status == "200"
             and "no-store" not in cache_control
             and "no-cache" not in cache_control
             and "max-age" in cache_control
