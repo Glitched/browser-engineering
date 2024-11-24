@@ -1,13 +1,14 @@
 import tkinter
+import tkinter.font
 from typing import TYPE_CHECKING
 
 from entities import entities
 from url import URL
 
 HSTEP, VSTEP = 13, 18
-PARAGRAPH_STEP = 2 * VSTEP
 SCROLL_STEP = 100
 SCROLL_BAR_WIDTH = 10
+
 
 # Typeshed definitions require generics, but we can't subscript python builtins
 if TYPE_CHECKING:
@@ -25,6 +26,7 @@ class Browser:
     display_list: list[tuple[int, int, str]]
     width: int
     height: int
+    fonts: dict[str, tkinter.font.Font]
 
     def __init__(self, rtl: bool = False):
         self.rtl = rtl
@@ -40,6 +42,7 @@ class Browser:
         self.window.bind("<Down>", self.scrolldown)
         self.window.bind("<MouseWheel>", self.scrollwheel)
         self.window.bind("<Configure>", self.on_configure)
+        self.fonts = {"helvetica": tkinter.font.Font(family="Helvetica", size=16)}
 
     def load(self, url: URL):
         body = url.request()
@@ -67,17 +70,20 @@ class Browser:
         display_list: list[tuple[int, int, str]] = []
         cursor_x, cursor_y = HSTEP, VSTEP
 
+        space = self.fonts["helvetica"].measure(" ")
+
         paragraphs = self.text.split("\n\n")
         for paragraph in paragraphs:
-            for c in paragraph:
-                display_list.append((cursor_x, cursor_y, c))
-                cursor_x += HSTEP
-                if cursor_x + HSTEP > self.width - SCROLL_BAR_WIDTH:
+            for word in paragraph.split():
+                w = self.fonts["helvetica"].measure(word)
+                display_list.append((cursor_x, cursor_y, word))
+                cursor_x += w + space
+                if cursor_x + w > self.width - SCROLL_BAR_WIDTH:
                     cursor_x = HSTEP
-                    cursor_y += VSTEP
+                    cursor_y += int(self.fonts["helvetica"].metrics("linespace") * 1.25)
 
             cursor_x = HSTEP
-            cursor_y += PARAGRAPH_STEP
+            cursor_y += int(self.fonts["helvetica"].metrics("linespace") * 2.5)
 
         self.display_list = display_list
 
@@ -91,7 +97,9 @@ class Browser:
             if y + VSTEP < self.scroll:
                 continue
 
-            self.canvas.create_text(x, y - self.scroll, text=c)
+            self.canvas.create_text(
+                x, y - self.scroll, text=c, font=self.fonts["helvetica"], anchor="nw"
+            )
 
         # Draw scroll bar
         if self.get_y_max() > self.height:
