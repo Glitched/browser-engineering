@@ -1,6 +1,6 @@
 from typing import Literal
 
-from display_item import DisplayItem, PendingDisplayItem
+from display_item import DisplayItem, PendingDisplayItem, Positioning
 from entities import entities
 from font_cache import FontStyle, FontWeight, get_font
 from tag import Tag
@@ -19,6 +19,7 @@ class Layout:
     weight: FontWeight = "normal"
     style: FontStyle = "roman"
     align: Literal["left", "center", "right"] = "left"
+    positioning: Positioning = "normal"
 
     def __init__(self, tokens: list[Text | Tag]):
         self.tokens = tokens
@@ -86,6 +87,18 @@ class Layout:
             case "/h2":
                 self.flush(width)
                 self.size -= 4
+            case "sup":
+                self.size //= 2
+                self.positioning = "superscript"
+            case "/sup":
+                self.size *= 2
+                self.positioning = "normal"
+            case "sub":
+                self.size //= 2
+                self.positioning = "subscript"
+            case "/sub":
+                self.size *= 2
+                self.positioning = "normal"
             case _:
                 pass
 
@@ -94,7 +107,9 @@ class Layout:
         w = font.measure(word)
         if self.cursor_x + w > width - HSTEP:
             self.flush(width)
-        self.line.append(PendingDisplayItem(self.cursor_x, word, font))
+        self.line.append(
+            PendingDisplayItem(self.cursor_x, word, font, self.positioning)
+        )
         self.cursor_x += w + font.measure(" ")
 
     def flush(self, width: int):
@@ -112,8 +127,14 @@ class Layout:
         max_ascent = max([metric["ascent"] for metric in metrics])
         baseline = self.cursor_y + (max_ascent * 1.25)
 
-        for x, word, font in self.line:
-            y = baseline - font.metrics("ascent")
+        for x, word, font, positioning in self.line:
+            match positioning:
+                case "superscript":
+                    y = baseline - font.metrics("ascent") - font.metrics("linespace")
+                case "subscript":
+                    y = baseline - font.metrics("ascent") * 0.5
+                case _:
+                    y = baseline - font.metrics("ascent")
             self.display_list.append(DisplayItem(x + offset, int(y), word, font))
 
         max_descent = max([metric["descent"] for metric in metrics])
