@@ -75,18 +75,6 @@ class Layout:
         self.line.append(PendingDisplayItem(self.cursor_x, word, font))
         self.cursor_x += w + font.measure(" ")
 
-        # font = get_font(self.size, self.weight, self.style)
-        # space = font.measure(" ")
-
-        # w = font.measure(word)
-        # self.line.append(PendingDisplayItem(self.cursor_x, word, font))
-        # self.cursor_x += w + space
-        # if self.cursor_x + w > width:
-        #     self.cursor_x = HSTEP
-        #     self.cursor_y += int(font.metrics("linespace") * 1.25)
-        # # cursor_x = HSTEP
-        # # cursor_y += int(self.fonts["helvetica"].metrics("linespace") * 2.5)
-
     def flush(self):
         if not self.line:
             return

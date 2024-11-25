@@ -2,7 +2,6 @@ import tkinter
 import tkinter.font
 from typing import TYPE_CHECKING
 
-from font_cache import get_font
 from layout import Layout
 from tag import Tag
 from text import Text
@@ -45,12 +44,12 @@ class Browser:
         self.window.bind("<Down>", self.scrolldown)
         self.window.bind("<MouseWheel>", self.scrollwheel)
         self.window.bind("<Configure>", self.on_configure)
-        self.fonts = {"helvetica": tkinter.font.Font(family="Helvetica", size=16)}
 
     def load(self, url: URL):
         body = url.request()
         self.lex(body)
         self.layout = Layout(self.text)
+        self.layout.render(self.get_content_width())
         self.draw()
 
     def lex(self, body: str):
@@ -76,16 +75,13 @@ class Browser:
 
     def draw(self):
         self.canvas.delete("all")
-
-        display_items = self.layout.render(self.width)
-        for x, y, c, font in display_items:
+        for x, y, c, font in self.layout.display_list:
             # Skip drawing characters off screen
             if y > self.scroll + self.height:
                 continue
             if y + VSTEP < self.scroll:
                 continue
 
-            # self.canvas.create_text(x, 21, text=c, font=font, anchor="nw")
             self.canvas.create_text(x, y - self.scroll, text=c, font=font, anchor="nw")
 
         # Draw scroll bar
@@ -100,9 +96,10 @@ class Browser:
             self.canvas.itemconfig(bar, fill="#999999")
 
     def on_configure(self, e: EventType):
-        self.width = e.width
         self.height = e.height
-        self.layout.render(self.get_content_width())
+        if e.width != self.width:
+            self.width = e.width
+            self.layout.render(self.get_content_width())
         self.draw()
 
     def add_scroll(self, offset: int):
