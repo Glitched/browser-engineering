@@ -96,6 +96,10 @@ class Browser:
             self.canvas.itemconfig(bar, fill="#999999")
 
     def on_configure(self, e: EventType):
+        # Not sure why we're getting a configure event with a width of 1 and height of 1
+        if e.width < 100:
+            return
+
         self.height = e.height
         if e.width != self.width:
             self.width = e.width

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from display_item import DisplayItem, PendingDisplayItem
 from entities import entities
 from font_cache import FontStyle, FontWeight, get_font
@@ -16,6 +18,7 @@ class Layout:
     size: int = 16
     weight: FontWeight = "normal"
     style: FontStyle = "roman"
+    align: Literal["left", "center", "right"] = "left"
 
     def __init__(self, tokens: list[Text | Tag]):
         self.tokens = tokens
@@ -29,7 +32,7 @@ class Layout:
 
         for t in self.tokens:
             self.token(t, width)
-        self.flush()
+        self.flush(width)
 
         return self.display_list
 
@@ -41,11 +44,11 @@ class Layout:
                 for word in text.split():
                     self.word(word, width)
             case Tag(_):
-                self.tag(t)
+                self.tag(t, width)
 
-    def tag(self, tag: Tag):
+    def tag(self, tag: Tag, width: int):
         tag_name = tag.tag
-        match tag_name:
+        match tag_name.split()[0]:
             case "i":
                 self.style = "italic"
             case "/i":
@@ -63,10 +66,26 @@ class Layout:
             case "/small":
                 self.size += 2
             case "br" | "/br":
-                self.flush()
+                self.flush(width)
             case "/p":
-                self.flush()
+                self.flush(width)
                 self.cursor_y += VSTEP
+            case "h1":
+                self.flush(width)
+                self.size += 8
+                if tag_name == 'h1 class="title"':
+                    self.align = "center"
+            case "/h1":
+                self.flush(width)
+                self.size -= 8
+                self.align = "left"
+                self.cursor_y += VSTEP
+            case "h2":
+                self.flush(width)
+                self.size += 4
+            case "/h2":
+                self.flush(width)
+                self.size -= 4
             case _:
                 pass
 
@@ -74,13 +93,20 @@ class Layout:
         font = get_font(self.size, self.weight, self.style)
         w = font.measure(word)
         if self.cursor_x + w > width - HSTEP:
-            self.flush()
+            self.flush(width)
         self.line.append(PendingDisplayItem(self.cursor_x, word, font))
         self.cursor_x += w + font.measure(" ")
 
-    def flush(self):
+    def flush(self, width: int):
         if not self.line:
             return
+
+        offset = 0
+        if self.line:
+            if self.align == "center":
+                offset = (width - self.line[-1].x) // 2
+            elif self.align == "right":
+                offset = width - self.line[-1].x - HSTEP
 
         metrics = [item.font.metrics() for item in self.line]
         max_ascent = max([metric["ascent"] for metric in metrics])
@@ -88,7 +114,7 @@ class Layout:
 
         for x, word, font in self.line:
             y = baseline - font.metrics("ascent")
-            self.display_list.append(DisplayItem(x, int(y), word, font))
+            self.display_list.append(DisplayItem(x + offset, int(y), word, font))
 
         max_descent = max([metric["descent"] for metric in metrics])
         self.cursor_y = int(baseline + (max_descent * 1.25))
