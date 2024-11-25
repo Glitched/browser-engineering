@@ -64,6 +64,9 @@ class Layout:
                 self.size += 2
             case "br" | "/br":
                 self.flush()
+            case "/p":
+                self.flush()
+                self.cursor_y += VSTEP
             case _:
                 pass
 
