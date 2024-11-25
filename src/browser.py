@@ -2,7 +2,10 @@ import tkinter
 import tkinter.font
 from typing import TYPE_CHECKING
 
-from entities import entities
+from font_cache import get_font
+from layout import Layout
+from tag import Tag
+from text import Text
 from url import URL
 
 HSTEP, VSTEP = 13, 18
@@ -22,11 +25,11 @@ class Browser:
     window: tkinter.Tk
     canvas: tkinter.Canvas
     scroll: int
-    text: str
-    display_list: list[tuple[int, int, str]]
+    text: list[Text | Tag]
     width: int
     height: int
     fonts: dict[str, tkinter.font.Font]
+    layout: Layout
 
     def __init__(self, rtl: bool = False):
         self.rtl = rtl
@@ -47,83 +50,63 @@ class Browser:
     def load(self, url: URL):
         body = url.request()
         self.lex(body)
-        self.layout()
+        self.layout = Layout(self.text)
         self.draw()
 
     def lex(self, body: str):
-        output = ""
+        out: list[Text | Tag] = []
+        buffer = ""
         in_tag = False
         for c in body:
             if c == "<":
                 in_tag = True
+                if buffer:
+                    out.append(Text(buffer))
+                buffer = ""
             elif c == ">":
                 in_tag = False
-            elif not in_tag:
-                output += c
+                out.append(Tag(buffer))
+                buffer = ""
+            else:
+                buffer += c
+        if not in_tag and buffer:
+            out.append(Text(buffer))
 
-        for entity, char in entities.items():
-            output = output.replace(entity, char)
-
-        self.text = output
-
-    def layout(self):
-        display_list: list[tuple[int, int, str]] = []
-        cursor_x, cursor_y = HSTEP, VSTEP
-
-        space = self.fonts["helvetica"].measure(" ")
-
-        paragraphs = self.text.split("\n\n")
-        for paragraph in paragraphs:
-            for word in paragraph.split():
-                w = self.fonts["helvetica"].measure(word)
-                display_list.append((cursor_x, cursor_y, word))
-                cursor_x += w + space
-                if cursor_x + w > self.width - SCROLL_BAR_WIDTH:
-                    cursor_x = HSTEP
-                    cursor_y += int(self.fonts["helvetica"].metrics("linespace") * 1.25)
-
-            cursor_x = HSTEP
-            cursor_y += int(self.fonts["helvetica"].metrics("linespace") * 2.5)
-
-        self.display_list = display_list
+        self.text = out
 
     def draw(self):
         self.canvas.delete("all")
 
-        for x, y, c in self.display_list:
+        display_items = self.layout.render(self.width)
+        for x, y, c, font in display_items:
             # Skip drawing characters off screen
             if y > self.scroll + self.height:
                 continue
             if y + VSTEP < self.scroll:
                 continue
 
-            self.canvas.create_text(
-                x, y - self.scroll, text=c, font=self.fonts["helvetica"], anchor="nw"
-            )
+            # self.canvas.create_text(x, 21, text=c, font=font, anchor="nw")
+            self.canvas.create_text(x, y - self.scroll, text=c, font=font, anchor="nw")
 
         # Draw scroll bar
-        if self.get_y_max() > self.height:
+        y_max = self.layout.get_y_max()
+        if y_max > self.height:
             bar = self.canvas.create_rectangle(
                 self.width - SCROLL_BAR_WIDTH,
-                (self.scroll / self.get_y_max()) * self.height,
+                (self.scroll / y_max) * self.height,
                 self.width - 5,
-                ((self.scroll + self.height) / self.get_y_max()) * self.height,
+                ((self.scroll + self.height) / y_max) * self.height,
             )
             self.canvas.itemconfig(bar, fill="#999999")
-
-    def get_y_max(self):
-        if len(self.display_list) == 0:
-            return 1
-        return self.display_list[-1][1]
 
     def on_configure(self, e: EventType):
         self.width = e.width
         self.height = e.height
-        self.layout()
+        self.layout.render(self.get_content_width())
         self.draw()
 
     def add_scroll(self, offset: int):
-        self.scroll = min(max(0, self.scroll + offset), self.get_y_max())
+        self.scroll = min(max(0, self.scroll + offset), self.layout.get_y_max())
 
     def scrolldown(self, e: EventType):
         self.add_scroll(SCROLL_STEP)
@@ -136,3 +119,6 @@ class Browser:
     def scrollwheel(self, e: EventType):
         self.add_scroll(e.delta * (SCROLL_STEP // 2))
         self.draw()
+
+    def get_content_width(self):
+        return self.width - SCROLL_BAR_WIDTH
