@@ -37,4 +37,5 @@ entities: dict[str, str] = {
     "&frac14;": "¼",
     "&frac12;": "½",
     "&frac34;": "¾",
+    "&shy;": "\N{SOFT HYPHEN}",
 }

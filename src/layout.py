@@ -106,6 +106,24 @@ class Layout:
         font = get_font(self.size, self.weight, self.style)
         w = font.measure(word)
         if self.cursor_x + w > width - HSTEP:
+            parts = word.split("\N{SOFT HYPHEN}")
+            hyphen_width = font.measure("-")
+
+            i = 0
+            while (
+                self.cursor_x
+                + sum([font.measure(p) for p in parts[: i + 1]])
+                + hyphen_width
+                < width - HSTEP
+            ):
+                i += 1
+            if i > 0:
+                partial_word = "".join(parts[:i]) + "-"
+                self.line.append(
+                    PendingDisplayItem(
+                        self.cursor_x, partial_word, font, self.positioning
+                    )
+                )
             self.flush(width)
         self.line.append(
             PendingDisplayItem(self.cursor_x, word, font, self.positioning)
