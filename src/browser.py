@@ -2,9 +2,8 @@ import tkinter
 import tkinter.font
 from typing import TYPE_CHECKING
 
+from html_parser import HTMLParser
 from layout import Layout
-from tag import Tag
-from text import Text
 from url import URL
 
 HSTEP, VSTEP = 13, 18
@@ -24,7 +23,6 @@ class Browser:
     window: tkinter.Tk
     canvas: tkinter.Canvas
     scroll: int
-    text: list[Text | Tag]
     width: int
     height: int
     fonts: dict[str, tkinter.font.Font]
@@ -47,31 +45,10 @@ class Browser:
 
     def load(self, url: URL):
         body = url.request()
-        self.lex(body)
-        self.layout = Layout(self.text)
+        root = HTMLParser(body).parse()
+        self.layout = Layout(root)
         self.layout.render(self.get_content_width())
         self.draw()
-
-    def lex(self, body: str):
-        out: list[Text | Tag] = []
-        buffer = ""
-        in_tag = False
-        for c in body:
-            if c == "<":
-                in_tag = True
-                if buffer:
-                    out.append(Text(buffer))
-                buffer = ""
-            elif c == ">":
-                in_tag = False
-                out.append(Tag(buffer))
-                buffer = ""
-            else:
-                buffer += c
-        if not in_tag and buffer:
-            out.append(Text(buffer))
-
-        self.text = out
 
     def draw(self):
         self.canvas.delete("all")

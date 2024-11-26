@@ -3,14 +3,13 @@ from typing import Literal
 from display_item import DisplayItem, PendingDisplayItem, Positioning
 from entities import entities
 from font_cache import FontStyle, FontWeight, get_font
-from tag import Tag
-from text import Text
+from html_parser import Element, Text
 
 HSTEP, VSTEP = 13, 18
 
 
 class Layout:
-    tokens: list[Text | Tag]
+    root: Text | Element
     display_list: list[DisplayItem]
     line: list[PendingDisplayItem] = []
     cursor_x: int = HSTEP
@@ -21,8 +20,8 @@ class Layout:
     align: Literal["left", "center", "right"] = "left"
     positioning: Positioning = "normal"
 
-    def __init__(self, tokens: list[Text | Tag]):
-        self.tokens = tokens
+    def __init__(self, root: Text | Element):
+        self.root = root
 
     def render(self, width: int):
         self.cursor_x = HSTEP
@@ -31,72 +30,82 @@ class Layout:
         self.display_list = []
         self.line = []
 
-        for t in self.tokens:
-            self.token(t, width)
+        self.recurse(self.root, width)
         self.flush(width)
 
         return self.display_list
 
-    def token(self, t: Text | Tag, width: int):
-        match t:
+    def recurse(self, tree: Text | Element, width: int):
+        match tree:
             case Text(text):
                 for entity, replacement in entities.items():
                     text = text.replace(entity, replacement)
                 for word in text.split():
                     self.word(word, width)
-            case Tag(_):
-                self.tag(t, width)
+            case Element(_):
+                self.open_tag(tree, width)
+                for child in tree.children:
+                    self.recurse(child, width)
+                self.close_tag(tree, width)
 
-    def tag(self, tag: Tag, width: int):
+    def open_tag(self, tag: Element, width: int):
         tag_name = tag.tag
         match tag_name.split()[0]:
             case "i":
                 self.style = "italic"
-            case "/i":
-                self.style = "roman"
             case "b":
                 self.weight = "bold"
-            case "/b":
-                self.weight = "normal"
             case "big":
                 self.size += 4
-            case "/big":
-                self.size -= 4
             case "small":
                 self.size -= 2
-            case "/small":
-                self.size += 2
-            case "br" | "/br":
+            case "br":
                 self.flush(width)
-            case "/p":
-                self.flush(width)
-                self.cursor_y += VSTEP
             case "h1":
                 self.flush(width)
                 self.size += 8
                 if tag_name == 'h1 class="title"':
                     self.align = "center"
-            case "/h1":
+            case "h2":
+                self.flush(width)
+                self.size += 4
+            case "sup":
+                self.size //= 2
+                self.positioning = "superscript"
+            case "sub":
+                self.size //= 2
+                self.positioning = "subscript"
+            case _:
+                pass
+
+    def close_tag(self, tag: Element, width: int):
+        tag_name = tag.tag
+        match tag_name.split()[0]:
+            case "i":
+                self.style = "roman"
+            case "b":
+                self.weight = "normal"
+            case "big":
+                self.size -= 4
+            case "small":
+                self.size += 2
+            case "br":
+                self.flush(width)
+            case "p":
+                self.flush(width)
+                self.cursor_y += VSTEP
+            case "h1":
                 self.flush(width)
                 self.size -= 8
                 self.align = "left"
                 self.cursor_y += VSTEP
             case "h2":
                 self.flush(width)
-                self.size += 4
-            case "/h2":
-                self.flush(width)
                 self.size -= 4
             case "sup":
-                self.size //= 2
-                self.positioning = "superscript"
-            case "/sup":
                 self.size *= 2
                 self.positioning = "normal"
             case "sub":
-                self.size //= 2
-                self.positioning = "subscript"
-            case "/sub":
                 self.size *= 2
                 self.positioning = "normal"
             case _:
