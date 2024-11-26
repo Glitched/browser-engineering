@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TypeAlias
 
 
 @dataclass(frozen=True)
 class Element:
     tag: str
     parent: Element | None = None
-    children: list[Element | Text] = field(default_factory=list)
+    children: list[HtmlNode] = field(default_factory=list)
     attrs: dict[str, str] = field(default_factory=dict)
 
     def __repr__(self):
@@ -27,6 +28,18 @@ class Text:
 
     def __repr__(self):
         return repr(self.text)
+
+
+@dataclass(frozen=True)
+class Comment:
+    text: str
+    parent: Element | None = None
+
+    def __repr__(self):
+        return f"<!--{self.text}-->"
+
+
+HtmlNode: TypeAlias = Element | Text | Comment
 
 
 class HTMLParser:
@@ -94,8 +107,15 @@ class HTMLParser:
         if parent:
             parent.children.append(node)
 
-    def add_tag(self, tag: str):
-        tag, attributes = self.get_attributes(tag)
+    def add_tag(self, text: str):
+        tag, attributes = self.get_attributes(text)
+
+        if tag == "!--":
+            parent = self.unfinished[-1] if self.unfinished else None
+            node = Comment(text[3:-3], parent)
+            if parent:
+                parent.children.append(node)
+            return
 
         # Ignore DOCTYPE and comments
         if tag.startswith("!"):
@@ -142,13 +162,13 @@ class HTMLParser:
             parent.children.append(node)
         return self.unfinished.pop()
 
-    def print_tree(self, node: Element | Text, indent: int = 0):
+    def print_tree(self, node: HtmlNode, indent: int = 0):
         print(" " * indent, node)
         match node:
             case Element():
                 for child in node.children:
                     self.print_tree(child, indent + 2)
-            case Text():
+            case Text() | Comment():
                 pass
 
     def implicit_tags(self, tag: str | None):
