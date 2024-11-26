@@ -134,6 +134,15 @@ class HTMLParser:
             node = Element(tag, parent, attrs=attributes)
             parent.children.append(node)
         else:
+            # Don't allow directly nested paragraphs or list items
+            if (
+                self.unfinished
+                and tag == self.unfinished[-1].tag
+                and tag in ["p", "li"]
+            ):
+                node = self.unfinished.pop()
+                self.unfinished[-1].children.append(node)
+
             parent = self.unfinished[-1] if self.unfinished else None
             node = Element(tag, parent, attrs=attributes)
             self.unfinished.append(node)
