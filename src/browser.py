@@ -46,6 +46,8 @@ class Browser:
     def load(self, url: URL):
         body = url.request()
         root = HTMLParser(body).parse()
+        # Print the tree for debugging
+        HTMLParser(body).print_tree(root)
         self.layout = Layout(root)
         self.layout.render(self.get_content_width())
         self.draw()

@@ -3,13 +3,13 @@ from typing import Literal
 from display_item import DisplayItem, PendingDisplayItem, Positioning
 from entities import entities
 from font_cache import FontStyle, FontWeight, get_font
-from html_parser import Element, Text
+from html_parser import Comment, Element, HtmlNode, Text
 
 HSTEP, VSTEP = 13, 18
 
 
 class Layout:
-    root: Text | Element
+    root: HtmlNode
     display_list: list[DisplayItem]
     line: list[PendingDisplayItem] = []
     cursor_x: int = HSTEP
@@ -35,7 +35,7 @@ class Layout:
 
         return self.display_list
 
-    def recurse(self, tree: Text | Element, width: int):
+    def recurse(self, tree: HtmlNode, width: int):
         match tree:
             case Text(text):
                 for entity, replacement in entities.items():
@@ -47,6 +47,8 @@ class Layout:
                 for child in tree.children:
                     self.recurse(child, width)
                 self.close_tag(tree, width)
+            case Comment():
+                pass
 
     def open_tag(self, tag: Element, width: int):
         tag_name = tag.tag

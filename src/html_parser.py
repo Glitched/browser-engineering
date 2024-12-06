@@ -79,20 +79,34 @@ class HTMLParser:
     def parse(self):
         text = ""
         in_tag = False
+        in_script = False
+
         for c in self.body:
-            if c == "<":
+            if c == "<" and not in_script:
                 in_tag = True
                 if text:
                     self.add_text(text)
                 text = ""
             elif c == ">":
-                in_tag = False
-                self.add_tag(text)
-                text = ""
+                if in_script:
+                    if text.endswith("</script"):
+                        in_script = False
+                        self.add_tag("script")
+                        # TODO: Handle script contents
+                        _script_contents = text.removesuffix("</script")
+                        text = ""
+                else:
+                    in_tag = False
+                    self.add_tag(text)
+                    if text == "script":
+                        in_script = True
+                    text = ""
             else:
                 text += c
+
         if not in_tag and text:
             self.add_text(text)
+
         return self.finish()
 
     def add_text(self, text: str):
