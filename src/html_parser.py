@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from typing import TypeAlias
 
 
@@ -12,13 +14,8 @@ class Element:
     attrs: dict[str, str] = field(default_factory=dict)
 
     def __repr__(self):
-        return (
-            "<"
-            + self.tag
-            + " "
-            + " ".join(f"{k}={v}" for k, v in self.attrs.items())
-            + ">"
-        )
+        attrs = " ".join(f"{k}='{v}'" if v != "" else k for k, v in self.attrs.items())
+        return "<" + self.tag + " " + attrs + ">"
 
 
 @dataclass(frozen=True)
@@ -40,6 +37,14 @@ class Comment:
 
 
 HtmlNode: TypeAlias = Element | Text | Comment
+
+
+class HTMLParserState(Enum):
+    TEXT = auto()
+    IN_TAG = auto()
+    IN_SCRIPT = auto()
+    IN_SINGLE_QUOTED_ATTR = auto()
+    IN_DOUBLE_QUOTED_ATTR = auto()
 
 
 class HTMLParser:
@@ -78,33 +83,46 @@ class HTMLParser:
 
     def parse(self):
         text = ""
-        in_tag = False
-        in_script = False
+        state = HTMLParserState.TEXT
 
         for c in self.body:
-            if c == "<" and not in_script:
-                in_tag = True
+            if c == "'" and state == HTMLParserState.IN_TAG:
+                state = HTMLParserState.IN_SINGLE_QUOTED_ATTR
+                text += c
+            elif c == "'" and state == HTMLParserState.IN_SINGLE_QUOTED_ATTR:
+                state = HTMLParserState.IN_TAG
+                text += c
+            elif c == '"' and state == HTMLParserState.IN_TAG:
+                state = HTMLParserState.IN_DOUBLE_QUOTED_ATTR
+                text += c
+            elif c == '"' and state == HTMLParserState.IN_DOUBLE_QUOTED_ATTR:
+                state = HTMLParserState.IN_TAG
+                text += c
+            elif c == "<" and state == HTMLParserState.TEXT:
+                state = HTMLParserState.IN_TAG
                 if text:
                     self.add_text(text)
                 text = ""
             elif c == ">":
-                if in_script:
+                if state == HTMLParserState.IN_SCRIPT:
                     if text.endswith("</script"):
-                        in_script = False
+                        state = HTMLParserState.TEXT
                         self.add_tag("script")
                         # TODO: Handle script contents
-                        _script_contents = text.removesuffix("</script")
+                        # _script_contents = text.removesuffix("</script")
                         text = ""
-                else:
-                    in_tag = False
+                elif state == HTMLParserState.IN_TAG:
+                    state = HTMLParserState.TEXT
                     self.add_tag(text)
                     if text == "script":
-                        in_script = True
+                        state = HTMLParserState.IN_SCRIPT
                     text = ""
+                else:
+                    text += c
             else:
                 text += c
 
-        if not in_tag and text:
+        if state == HTMLParserState.TEXT and text:
             self.add_text(text)
 
         return self.finish()
@@ -162,18 +180,16 @@ class HTMLParser:
             self.unfinished.append(node)
 
     def get_attributes(self, text: str):
-        parts = text.split()
-        tag = parts[0].casefold()
-        attributes: dict[str, str] = {}
-        for attrpair in parts[1:]:
-            if "=" in attrpair:
-                key, value = attrpair.split("=", 1)
-                if len(value) > 2 and value[0] in ["'", '"']:
-                    value = value[1:-1]
-                attributes[key.casefold()] = value
-            else:
-                attributes[attrpair.casefold()] = ""
-        return tag, attributes
+        components = text.split(" ", 1)
+        tag = components[0]
+        attr_str = components[1] if len(components) > 1 else ""
+        pattern = re.compile(r"(?P<key>\w+)(=(['\"])(?P<val>.*?)\3)?")
+        attributes = {
+            match.group("key"): match.group("val") or ""
+            for match in pattern.finditer(attr_str)
+        }
+
+        return tag.casefold(), attributes
 
     def finish(self):
         if not self.unfinished:
